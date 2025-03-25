@@ -24,12 +24,13 @@ This project uses the **PYNQ development board** by **TUL**, which is based on t
 The **baud rate** must be the same for the receiver and transmitter, commonly **9600 or 115200 bps**.
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/ad2cf0e8-3720-428b-9099-3e8847bc0827" width="400">
+  <img src="https://github.com/user-attachments/assets/ad2cf0e8-3720-428b-9099-3e8847bc0827" width="600">
 </p>
-
+<p align="center">1. UART connection between 2 devices</p>
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/ebd2d331-6e61-4ef0-b82e-6f6dffe6d679" width="500">
+  <img src="https://github.com/user-attachments/assets/ebd2d331-6e61-4ef0-b82e-6f6dffe6d679" width="600">
 </p>
+<p align="center">2. UART data transfer</p>
 
 LSB is the first bit to transfer.
 
@@ -44,8 +45,9 @@ This project implements a **UART receiver** that connects to a **Bluetooth HC-05
   - Displays the received data on LEDs
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/88e385ed-1680-414e-9ed5-f9f762050356" width="500">
+  <img src="https://github.com/user-attachments/assets/88e385ed-1680-414e-9ed5-f9f762050356" width="600">
 </p>
+<p align="center">3. State-Machine to implement the UART receiver</p>
 
 #### **Simulation**
 - A test bench is used to verify the UART receiver functionality.
@@ -53,6 +55,7 @@ This project implements a **UART receiver** that connects to a **Bluetooth HC-05
 <p align="center">
   <img src="https://github.com/user-attachments/assets/a3800823-1c38-4efd-b657-66761197f01d" width="600">
 </p>
+<p align="center">4. Reciver simulation</p>
 
 #### **Results**
 - **ASCII Code for `A` (01000001) sent and received:**
@@ -60,18 +63,22 @@ This project implements a **UART receiver** that connects to a **Bluetooth HC-05
 <p align="center">
   <img src="https://github.com/user-attachments/assets/10840b89-54c1-436f-91f8-702ae3a9d15d" width="500">
 </p>
+<p align="center">5. Sending A</p>
 <p align="center">
   <img src="https://github.com/user-attachments/assets/423d8d65-cb9d-4715-ab9a-71429d419fec" width="500">
 </p>
+<p align="center">6. Received A</p>
 
 - **ASCII Code for `z` (01111010) sent and received:**
 
 <p align="center">
   <img src="https://github.com/user-attachments/assets/3242a540-7df3-4344-867f-e7e956dc0051" width="500">
 </p>
+<p align="center">7. Sending z</p>
 <p align="center">
   <img src="https://github.com/user-attachments/assets/847b26b8-00ae-41d9-8ba7-0ee72194c387" width="500">
 </p>
+<p align="center">8. Received z</p>
 
 #### **Hardware Connection**
 The HC-05 module is connected to the **PYNQ development board** using **PMOD GPIO connectors**. The received data is displayed via **8 external LEDs**.
@@ -92,6 +99,7 @@ The HC-05 module is connected to the **PYNQ development board** using **PMOD GPI
 <p align="center">
   <img src="https://github.com/user-attachments/assets/da26379d-39fb-4a35-a6aa-ad1796ab8066" width="300">
 </p>
+<p align="center">9. SPI protocol wires</p>
 
 #### **SPI Data Transfer Process**
 
@@ -103,13 +111,15 @@ The HC-05 module is connected to the **PYNQ development board** using **PMOD GPI
 <p align="center">
   <img src="https://github.com/user-attachments/assets/24aeeedc-730f-4c1e-ba50-305e44e8e472" width="600">
 </p>
+<p align="center">10. SPI data transfer process</p>
 
 ### Application
 This project implements an **SPI master** to control an **MCP4921 12-bit DAC**.
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/0366916e-452f-45a1-9fce-7093503a8b0f" width="500">
-</p>
+  <img src="https://github.com/user-attachments/assets/0366916e-452f-45a1-9fce-7093503a8b0f" width="600">
+</p><p align="center">11. MCP4921 pinout</p>
+
 
 **Voltage Calculation Formula:**
 
@@ -125,6 +135,7 @@ $$V_{out} = \frac{V_{ref} \times D(11:0)}{4096}$$
   <p align="center">
   <img src="https://github.com/user-attachments/assets/9ab789bb-a63d-4a8f-bd19-1b83664620e0" width="600">
 </p>
+<p align="center">12. State-Machine to implement the SPI DAC Master</p>
 
 #### **Simulation**
 - A test bench is used to verify the UART receiver functionality.
@@ -132,6 +143,7 @@ $$V_{out} = \frac{V_{ref} \times D(11:0)}{4096}$$
   <p align="center">
   <img src="https://github.com/user-attachments/assets/db4da775-e2be-43cd-9a6b-0aeb554bfd13" width="600">
 </p>
+<p align="center">13. SPI DAC master simulation</p>
 
 #### **Results**
 | Data Sent | Analog Voltage |
@@ -142,18 +154,22 @@ $$V_{out} = \frac{V_{ref} \times D(11:0)}{4096}$$
 <p align="center">
   <img src="https://github.com/user-attachments/assets/d62b3c64-ab6d-4be4-8083-54776a6049a3" width="500">
 </p>
+<p align="center">14. Data vector</p>
 
 <p align="center">
   <img src="https://github.com/user-attachments/assets/1594d452-eadd-442b-8674-9d15d6453568" width="500">
 </p>
+<p align="center">15. Analog voltage for 001000000000</p>
 
 <p align="center">
   <img src="https://github.com/user-attachments/assets/55eca8d1-a643-4fd8-b01d-aa084dc4a070" width="500">
 </p>
+<p align="center">16. Data vector</p>
 
 <p align="center">
   <img src="https://github.com/user-attachments/assets/627caea0-8a51-476b-8a6f-fdb6fdeddd90" width="500">
 </p>
+<p align="center">17. Analog voltage for 011111111111</p>
 
 ---
 
@@ -167,6 +183,7 @@ $$V_{out} = \frac{V_{ref} \times D(11:0)}{4096}$$
 <p align="center">
   <img src="https://github.com/user-attachments/assets/548d7555-a5ee-4096-86aa-0d2ff31e6159" width="500">
 </p>
+<p align="center">18. I2C protocol wires</p>
 
 ### I2C Data Transfer Process
 - The **master** generates a **START** signal.
@@ -177,11 +194,12 @@ $$V_{out} = \frac{V_{ref} \times D(11:0)}{4096}$$
 <p align="center">
   <img src="https://github.com/user-attachments/assets/f437672c-7904-4475-96ea-76ebe7ef33c7" width="300">
 </p>
-
+<p align="center">19. I2C start and stop signal</p>
 
 <p align="center">
   <img src="https://github.com/user-attachments/assets/a30b0858-58e9-4b32-9df9-b677871d45bb" width="600">
 </p>
+<p align="center">20. I2C frame for example</p>
 
 ### Application
 This project implements an **I2C master** to interface with an **LM75 temperature sensor**.
@@ -214,6 +232,7 @@ The **State Machine** is used to implement the system.
 <p align="center">
   <img src="https://github.com/user-attachments/assets/5d38be0e-d7ae-498e-93ea-c187676827c7" width="700">
 </p>
+<p align="center">21. LM75 datasheet timing diagram</p>
 
 ### Additional Details
 - The **11-bit result** updates the **11 LED register every 1 second**.
@@ -227,6 +246,7 @@ The **State Machine** is used to implement the system.
 <p align="center">
   <img src="https://github.com/user-attachments/assets/ceb3384a-3375-4b44-91d6-fa2bc0a484ea" width="600">
 </p>
+<p align="center">22. I2C master simulation</p>
 
 #### **Results**
 - **Measured Temperature: 31.25°C**
@@ -234,7 +254,7 @@ The **State Machine** is used to implement the system.
 <p align="center">
   <img src="https://github.com/user-attachments/assets/db009f19-6876-4321-a7b6-d707682542e0" width="500">
 </p>
-
+<p align="center">23. I2C master result</p>
 
 $$T(°C) = 250 \times 0.125 = 31.25°$$
 

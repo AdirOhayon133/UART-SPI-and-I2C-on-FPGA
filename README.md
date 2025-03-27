@@ -37,12 +37,16 @@ LSB is the first bit to transfer.
 ### Application
 This project implements a **UART receiver** that connects to a **Bluetooth HC-05 module**. The HC-05 sends ASCII codes from a tablet, and the receiver displays the ASCII code using LEDs.
 
-#### **VHDL Code Explanation**
-- **Clock Divider**: Generates a **9600Hz clock** from a **125MHz system clock**.
-- **State Machine Implementation**:
-  - Detects start bit
-  - Reads **8-bit data** from the HC-05
-  - Displays the received data on LEDs
+### **VHDL Code Explanation**
+This VHDL code implements a simple UART receiver that converts serial data into an 8-bit parallel output. It operates using a 125 MHz clock and generates a lower 9600 Hz clock for sampling the incoming data.
+
+The module begins by defining its inputs and outputs, including the high-frequency clock, a reset signal, a serial data input (`Din`), and an 8-bit output (`Dout`). A counter is used to divide the 125 MHz clock down to 9600 Hz, which is necessary for UART communication.
+
+A finite state machine (FSM) is used to control the reception process. The system starts in an idle state (`start_stop`), where it waits for a low signal (`Din = 0`), indicating the start of data transmission. Once detected, the FSM transitions to the `Datain` state and begins capturing incoming bits at the 9600 Hz clock rate.
+
+Each bit is stored sequentially in the `Dout` register, indexed by `data_index`, which increments with each received bit. After all 8 bits are received, the FSM returns to the idle state (`start_stop`), ready for the next transmission.
+
+This design ensures reliable data reception by synchronizing with the incoming serial data and properly assembling it into an 8-bit parallel format.
 
 <p align="center">
   <img src="https://github.com/user-attachments/assets/88e385ed-1680-414e-9ed5-f9f762050356" width="600">
@@ -126,14 +130,22 @@ This project implements an **SPI master** to control an **MCP4921 12-bit DAC**.
 $$V_{out} = \frac{V_{ref} \times D(11:0)}{4096}$$
 
 ### VHDL Code Explanation
+This VHDL module implements an SPI Master to communicate with a Digital-to-Analog Converter (DAC). It generates three essential SPI signals: `MOSI` (Master Out, Slave In), `SCLK` (Serial Clock), and `CS` (Chip Select). The system operates using a 125 MHz input clock, which is divided down to generate an appropriate SPI clock.
 
-- **Clock Divider**: Generates a **1MHz SPI clock** from a **125MHz system clock**.
-- **State Machine Implementation**:
-  - Sends **configuration bits and 12-bit data** to MCP4921.
-  - Converts **digital values to analog signals**.
+The module follows a finite state machine (FSM) approach with three states:
+
+1. Idle (`st_idle`) – The system remains inactive until `tx_enable` is asserted. In this state, `CS` is high (inactive), and `MOSI` is low.
+
+2. Control Transmission (`st0_txmt`) – When transmission starts, `CS` is pulled low to activate the DAC. The module sends a 4-bit control sequence (`0011`).
+
+3. Data Transmission (`st1_txmt`) – After sending the control bits, the system transmits a 12-bit data value (`010000000000`). Once transmission is complete, the system returns to the idle state (`st_idle`).
+
+A clock division process reduces the 125 MHz input clock to generate an appropriate SPI clock (`SCLK`). The clock toggles after 62 cycles to ensure correct SPI timing. The FSM transitions between states based on the `tx_enable` signal and the data index counter.
+
+This design ensures reliable SPI communication by sequencing the control and data bits properly while maintaining accurate clock timing. It is ideal for FPGA-based DAC control applications.
  
   <p align="center">
-  <img src="https://github.com/user-attachments/assets/9ab789bb-a63d-4a8f-bd19-1b83664620e0" width="600">
+  <img src="https://github.com/user-attachments/assets/46c4d564-0929-4052-a563-d94ea0b37035" width="600">
 </p>
 <p align="center">12. State-Machine to implement the SPI DAC Master</p>
 
@@ -204,37 +216,83 @@ $$V_{out} = \frac{V_{ref} \times D(11:0)}{4096}$$
 ### Application
 This project implements an **I2C master** to interface with an **LM75 temperature sensor**.
 
-### Temperature Calculation
+#### Temperature Calculation
 The temperature calculation follows these formulas:
 - If the sign bit is **positive**:
   $$T(°C) = D(9:0) \times 0.125$$
 - If the sign bit is **negative**:
   $$T(°C) = (\text{Two’s complement of } D(9:0)) \times 0.125$$
 
-  ### VHDL Code Explanation
+### VHDL Code Explanation
+This VHDL module implements an I2C Master controller to communicate with an LM75 temperature sensor. The module interfaces with the I2C bus using `SCL` (serial clock) and `SDA` (serial data), and it operates at a base system clock of 125 MHz, which is divided down to generate appropriate I2C clock frequencies. Additionally, the temperature data received from the sensor is displayed using LEDs.
 
-The **State Machine** is used to implement the system.
+#### Functionality Overview
+- Clock Generation:
+  A 400 kHz clock is derived from the 125 MHz system clock. 
+  This clock is further divided to generate a 100 kHz clock, which is the standard I2C communication frequency.
 
-- **read_data Process**: Creates a `read_data` signal that rises from low to high every **1 second** to update the temperature using a **clock divider** from the **125MHz system clock**.
-- **clk400KHz Process**: Generates a **400KHz clock** from the **125MHz system clock** using a **clock divider**.
-- **clk_100KHz Process**: Generates a **100KHz clock** from the **125MHz system clock** for the **SCL signal** and system clock. The **Data Clock Signal (DCL)** is shifted **left by ¼ period** from SCL using a **clock divider**.
-- **Present_state_and_next_state Process**: Sets the next state in the **State Machine**:
-  - On **DCL rising edge**, if the **reset button** is pressed, the system enters the `st_idle` state.
-  - If the reset button is **not** pressed and `data_index = num_of_ret - 1`, the system transitions to the **next state**.
-- **Registers_in Process**: Sets the **MSB and LSB** signals from the received LM75 data when:
-  - Present state = `st9_read_msb`
-  - Present state = `st11_read_lsb`
-  - On **DCL falling edge**
-- **p3 Process**: Implements the **I2C Master** using the **State Machine**:
-  - If `rd_data = 0`, the system enters the `st_idle` state.
-  - If `rd_data = 1`, the **State Machine starts running** according to the **LM75 datasheet timing diagram**.
+- Finite State Machine (FSM) for I2C Transactions:
+  The FSM has multiple states to handle I2C communication from LM75 datasheet timing diagram:
+
+  1. Idle (`st_idle`): The bus remains inactive until data needs to be read.
+
+  2. Start Condition (`st0_star`): Initiates communication by pulling `SDA` low while `SCL` is high.
+
+  3. Send Slave Address (`Write Mode`) (`st1_Address_w`): Sends the LM75's write address (`0x92`).
+
+  4. Acknowledge Handling (`st2_ack1`): Waits for an `ACK` from the LM75.
+
+  5. Send Pointer Register Address (`st3_pointer`): Selects the temperature register (`0x00`).
+
+  6. Acknowledge Handling (`st4_ack2`): Waits for an `ACK` after sending the pointer.
+
+  7. Delay (`st5_delay`): Brief pause before restarting communication.
+
+  8. Restart Condition (`st6_restart`): Generates a repeated START condition for reading data.
+
+  9. Send Slave Address (`Read Mode`) (`st7_Address_r`): Sends the LM75's read address (`0x93`).
+
+  10. Acknowledge Handling (`st8_ack3`): Waits for an `ACK`.
+
+  11. Read Temperature MSB (`st9_read_msb`): Receives the most significant byte (MSB) of temperature data.
+
+  12. Acknowledge (`st10_ack4_Master`): Sends an `ACK` to continue reading.
+
+  13. Read Temperature LSB (`st11_read_lsb`): Receives the least significant byte (LSB) of temperature data.
+
+  14. No Acknowledge (`st12_nack_Master`): Sends a `NACK` to indicate reading is complete.
+
+  15. Stop Condition (`st13_stop`): Releases the I2C bus and ends communication.
+
+- Data Processing and LED Output:
+   
+  The received MSB and LSB of temperature data are stored in registers.
+  The upper bits of the MSB are displayed on LEDs, allowing visual feedback on temperature readings.
+
+- Clock Management:
+  
+  The 125 MHz input clock is divided down to generate 400 kHz and 100 kHz clocks, ensuring proper timing for I2C communication.
+  A counter manages the clock transitions and ensures correct phase alignment.
+
+- I2C Data Handling:
+   
+  The SDA signal is driven based on the FSM state transitions.
+  When reading data, SDA is set to high-impedance ('Z') to allow the LM75 sensor to transmit.
+  Bit-wise shifting is used to send the address, pointer, and receive temperature data.
+
+- Summary:
+  
+  This VHDL module acts as an I2C Master, communicating with the LM75 temperature sensor.
+  It follows a structured FSM to handle start, address transmission, data reading, and stop conditions. The received 
+  temperature data is stored and displayed using LEDs, making it useful for FPGA-based temperature monitoring applications.
+
  
 <p align="center">
   <img src="https://github.com/user-attachments/assets/5d38be0e-d7ae-498e-93ea-c187676827c7" width="700">
 </p>
 <p align="center">21. LM75 datasheet timing diagram</p>
 
-### Additional Details
+#### Additional Details
 - The **11-bit result** updates the **11 LED register every 1 second**.
 - **SCL frequency**: **100KHz**
 - **I2C Address**: `1001001`

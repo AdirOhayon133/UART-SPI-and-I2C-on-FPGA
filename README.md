@@ -35,57 +35,130 @@ The **baud rate** must be the same for the receiver and transmitter, commonly **
 LSB is the first bit to transfer.
 
 ### Application
-This project implements a **UART receiver** that connects to a **Bluetooth HC-05 module**. The HC-05 sends ASCII codes from a tablet, and the receiver displays the ASCII code using LEDs.
+This project implements a simple UART receiver and transmitter. The reciver get ASCII code from the tablet via HC-05 Bluetooth module and converts serial data into an 8-bit parallel output using LEDs. The transmitter send the ASCII code of the letter 'A' (01000001) after pushing pysical push-buttom in the developmnt board to tablet via HC-05 Bluetooth module. To ensure separated data and debouncing, the transmit signal goin throe Edge detection with period of 9600Hz. The system using 9600Hz by divede the 125MHz main board clock. The rst signal is synchronous and connect to pysical push-buttom in the developmnt board.
+
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/a9e9a793-aca9-4105-8152-6b7ef97d0379" width="400">
+</p>
+<p align="center">3. HC-05 Module</p>
 
 ### **VHDL Code Explanation**
-This VHDL code implements a simple UART receiver that converts serial data into an 8-bit parallel output. It operates using a 125 MHz clock and generates a lower 9600 Hz clock for sampling the incoming data.
+The main module (Main_UART.vhd) is built from 4 submodules. 1. Clock diveder (Clk_div.vhd). 2. UART Transmitter (UART_tx.vhd) 3. UART Reciver (UART_rx.vhd). 4. Edge detection (Edge_detection.vhd). 
 
-The module begins by defining its inputs and outputs, including the high-frequency clock, a reset signal, a serial data input (`Din`), and an 8-bit output (`Dout`). A counter is used to divide the 125 MHz clock down to 9600 Hz, which is necessary for UART communication.
+The inputs are: `Clk_125MHz`, `rst`, `start_tx_pb` and `rx`.
 
-A finite state machine (FSM) is used to control the reception process. The system starts in an idle state (`start_stop`), where it waits for a low signal (`Din = 0`), indicating the start of data transmission. Once detected, the FSM transitions to the `Datain` state and begins capturing incoming bits at the 9600 Hz clock rate.
-
-Each bit is stored sequentially in the `Dout` register, indexed by `data_index`, which increments with each received bit. After all 8 bits are received, the FSM returns to the idle state (`start_stop`), ready for the next transmission.
-
-This design ensures reliable data reception by synchronizing with the incoming serial data and properly assembling it into an 8-bit parallel format.
+The outputs are: `tx` and `rx_result_led (7 downto 0)`.
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/88e385ed-1680-414e-9ed5-f9f762050356" width="600">
+  <img src="https://github.com/user-attachments/assets/a887c230-f6f6-4c71-bcbd-b752251a4bfe" width="600">
 </p>
-<p align="center">3. State-Machine to implement the UART receiver</p>
+<p align="center">4. UART System</p>
+
+**1. Main_UART.vhd**
+
+This module represents the top-level integration of the UART system.It connects all submodules required for UART communication, including:
+1. Clock divider
+2. UART transmitter (TX)
+3. UART receiver (RX)
+4. Push-button edge detection
+
+The design allows sending data via UART using a push button and receiving UART data and displaying it on LED.
+
+The Main_UART entity acts as the system controller, responsible for: Distributing the clock signal, connecting external inputs/outputs to internal modules
+and managing communication between TX and RX blocks.
+
+The design uses a 125 MHz system clock (`Clk_125MHz`) and reset push button input (`rst`). A push button input (`start_tx_pb`) is used to trigger transmission, while the `rx` signal receives serial data from an external UART source. The module outputs serial data through `tx` and displays received 8-bit data on LEDs via `rx_result_led`.
+
+**2. UART_rx.vhd**
+
+This module converts incoming serial UART data into parallel 8-bit data. It detects the start of a reciving data, sample each incoming bit sequentially, and assembles the complete ASCII code (8 bits). The process manage by using FSM. 
+
+The module uses `Clk_9600Hz` as its operating clock and `rst` as synchronous reset signal. The serial data input is `Din`, and the output `Dout[7:0]` stores the received 8-bit data.
+
+The FSM with the states: `start_stop`, `st_0`, `st_1`, `st_2`, `st_3`, `st_4`, `st_5`, `st_6`, and `st_7`. The `start_stop` state waits for the start bit, while each subsequent state captures one bit of data. Two signals, `present_state` and `next_state`, manage the state transitions. The receiver continuously monitors the input line. When the line is high (`1`), the system remains in the idle (`start_stop`) state. When a low signal (`0`) is detected, it indicates the start bit, and the FSM transitions to `st_0`. From there, the module samples one bit per clock cycle. Each state stores the current value of `Din` into the corresponding bit of `Dout`. After all 8 bits are received, the FSM returns to the `start_stop` state to wait for the next transmission. Each state captures one bit, storing data in LSB-first order, meaning the first received bit is placed in `Dout(0)` and the last in `Dout(7)`.
+
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/1edd7b93-d960-489d-aabe-ebf783998d87" width="600">
+</p>
+<p align="center">5. Reciver FSM diagram</p>
+
+**3. UART_tx.vhd**
+
+The module implements a UART transmitter using FSM to send the ASCII code of the letter 'A' (01000001) over the `Data_tx` line according to the UART protocol. 
+
+The module operates using the `Clk_9600Hz` clock and `rst` as synchronous reset signal. The `start_tx` input is used to initiate transmission. The output `Data_tx` is the serial data line that carries the transmitted bits.
+
+The design is based on an FSM with the following states: `idle`, `start_bit`, `st_0`, `st_1`, `st_2`, `st_3`, `st_4`, `st_5`, `st_6`, `st_7`, and `stop_bit`. The `idle` state represents the inactive UART line, while the remaining states correspond to transmitting each part of the UART frame. Two signals, `present_state` and `next_state`, control the state transitions. A constant value 'A' is defined as an 8-bit vector (`x"41"`).The transmitter begins in the `idle` state, where the output line is held high (`1`), which is the default UART idle condition. When the `start_tx` signal is asserted, the FSM transitions to the `start_bit` state, where a low signal (`0`) is transmitted to indicate the start of a frame. The FSM then progresses through states `st_0` to `st_7`, transmitting one bit of the data in each state. The bits are sent in LSB-first order, meaning `A(0)` is transmitted first and `A(7)` last. After all data bits are transmitted, the FSM enters the `stop_bit` state, where the line is set back to high (`1`). Finally, the FSM either returns to the idle state or immediately starts a new transmission if `start_tx` is still asserted.
+
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/469cd57b-a9aa-4101-9d54-167cb6478041" width="600">
+</p>
+<p align="center">6. Transmitter FSM diagram</p>
+
+**4. Edge_detection.vhd**
+
+This module is used to convert a level-based input signal (such as a push button) into a single clock-cycle pulse, ensuring that only one trigger event is generated per rising edge. This is especially important when interfacing mechanical inputs that may remain high for multiple clock cycles.
+The module operates using the `Clk_9600Hz` clock. The input `D` is the signal being monitored for transitions, and the output `Q` is a pulse that goes high for one clock cycle when a rising edge is detected on `D`.At every rising edge of the clock, the input signal `D` is first stored in `R0`, and the previous value of `R0` is stored in `R1`. This creates a one-clock-cycle delay between `R0` and `R1`. The output `Q` is generated using combinational logic `Q = (not R1) and R0` that detects when `R0` is high (`1`) and R1 is low (`0`). This condition occurs only when the input signal transitions from 0 to 1, producing a single-cycle pulse. A push button input (`start_tx_pb`) is used to trigger transmission so, in Main_UART `D` get the `start_tx_pb`.
+
+**5. Clk_div.vhd**
+
+The module uses `Clk_125MHz` as the main input clock. The output `Clk_9600Hz` is the generated low-frequency clock used by UART modules.
+The design is based on a counter (`counter`) that ranges from 0 to 13020. This value is derived from dividing the input clock frequency (125 MHz) by the desired output frequency (9600 Hz). The counter increments on every rising edge of the input clock and controls the output waveform.
+On each rising edge of the 125 MHz clock, the counter increments. For the first half of the count range (from 0 to 6510), the output clock `Clk_9600Hz` is set to low (`0`). For the second half (from 6511 to 13019), the output is set to high (`1`). When the counter reaches 13020, it resets back to zero, and the cycle repeats. This process generates a periodic square wave with a frequency close to 9600 Hz and an approximate 50% duty cycle.
 
 #### **Simulation**
+
 - A test bench is used to verify the UART receiver functionality.
 
+**Main_UART_TB.vhd**
+
+The purpose of this testbench is to validate both UART transmission and reception by providing controlled input signals and monitoring the outputs. It ensures that the integrated system operates correctly under expected timing conditions.The testbench instantiates the Main_UART module as the Device Under Test (DUT) and connects internal signals to simulate real hardware inputs and outputs. Since this is a testbench, it has no external ports and operates entirely within the simulation environment. The testbench defines signals corresponding to the DUT ports, including `Clk_125MHz`, `rst`, `start_tx_pb`, and `rx` as inputs, and `tx` and `rx_result_led` as outputs. These signals are used to drive the DUT and observe its behavior.
+A process is used to generate a continuous clock signal. The clock toggles every 4 ns, resulting in a full period of 8 ns, which corresponds to a frequency of 125 MHz. This clock drives the entire system during simulation.
+The reset signal (`rst`) is held at logic low (`0`) throughout the simulation, meaning the system is not explicitly reset during operation.
+A dedicated process simulates incoming UART data on the `rx` line. The signal starts in the idle state (`1`) and then transitions to (`0`) to represent the start bit. Following this, a sequence of high and low values is applied with precise delays of approximately 104.17 µs, which corresponds to a baud rate of 9600 bits per second. Each delay represents one bit period, allowing the simulation of a full UART frame including start bit, data bits, and stop bit.
+Another process simulates a push button press for transmission. The signal `start_tx_pb` is initially low (`0`) and then set high (`1`) for a short duration (200 µs) after a delay. This generates a trigger event that activates the UART transmitter within the DUT.During simulation, the clock process continuously drives the system. The RX stimulus process injects serial data into the receiver, while the push button process triggers the transmitter. The DUT processes these inputs, producing serial output on `tx` and parallel output on `rx_result_led`, which can be observed in waveform viewers.
+
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/a3800823-1c38-4efd-b657-66761197f01d" width="600">
+  <img src="https://github.com/user-attachments/assets/2fc542ef-df3c-4c84-80fd-7b5a2dbdf4e4" width="800">
 </p>
-<p align="center">4. Reciver simulation</p>
+<p align="center">7. TB result waveform </p>
 
 #### **Results**
-- **ASCII Code for `A` (01000001) sent and received:**
+
+- **Sending A ('01000001') from tablet via HC-05:**
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/10840b89-54c1-436f-91f8-702ae3a9d15d" width="500">
+  <img src="https://github.com/user-attachments/assets/848db9d0-8111-4c72-b201-c35374aef113" width="500">
 </p>
-<p align="center">5. Sending A</p>
+<p align="center">8. Sending A</p>
+
+- **The result:**
+
 <p align="center">
   <img src="https://github.com/user-attachments/assets/423d8d65-cb9d-4715-ab9a-71429d419fec" width="500">
 </p>
-<p align="center">6. Received A</p>
+<p align="center">9. Led result for the letter A</p>
 
-- **ASCII Code for `z` (01111010) sent and received:**
+- **Sending z ('01111010') from tablet via HC-05:**
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/3242a540-7df3-4344-867f-e7e956dc0051" width="500">
+  <img src="https://github.com/user-attachments/assets/c7989c7e-b85f-4ce3-a4bc-00f4224ff676" width="500">
 </p>
-<p align="center">7. Sending z</p>
+<p align="center">10. Sending z</p>
 <p align="center">
   <img src="https://github.com/user-attachments/assets/847b26b8-00ae-41d9-8ba7-0ee72194c387" width="500">
 </p>
-<p align="center">8. Received z</p>
+<p align="center">11. Led result for the letter z</p>
+
+- **Reciving A ('01000001') from transmitter to tablet via HC-05 after push the start tx push-button:**
+  
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/3c3cc46e-b733-4c99-9130-a9d9777f31cb" width="500">
+</p>
+<p align="center">12. Reciving the letter A in tablet </p>
 
 #### **Hardware Connection**
-The HC-05 module is connected to the **PYNQ development board** using **PMOD GPIO connectors**. The received data is displayed via **8 external LEDs**.
+The HC-05 module is connected to the **PYNQ development board** using **PMOD GPIO connectors**. The received data is displayed via **8 external LEDs** and the transmited data is displayed in **tablet bluetooth terminal**.
 
 ---
 

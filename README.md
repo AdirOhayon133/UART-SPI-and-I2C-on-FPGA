@@ -50,7 +50,7 @@ The inputs are: `Clk_125MHz`, `rst`, `start_tx_pb` and `rx`.
 The outputs are: `tx` and `rx_result_led (7 downto 0)`.
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/a887c230-f6f6-4c71-bcbd-b752251a4bfe" width="600">
+  <img src="https://github.com/user-attachments/assets/73c7a157-5da6-47f5-a2fd-2c6a836bd308" width="600">
 </p>
 <p align="center">4. UART System</p>
 

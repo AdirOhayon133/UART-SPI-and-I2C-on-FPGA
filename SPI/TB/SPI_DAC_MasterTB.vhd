@@ -35,5 +35,4 @@ tx_enable <='1'; wait for 3ms;
 tx_enable <='0'; wait for 20ms;
 end process;
 
-
 end Behavioral;

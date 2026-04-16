@@ -35,57 +35,150 @@ The **baud rate** must be the same for the receiver and transmitter, commonly **
 LSB is the first bit to transfer.
 
 ### Application
-This project implements a **UART receiver** that connects to a **Bluetooth HC-05 module**. The HC-05 sends ASCII codes from a tablet, and the receiver displays the ASCII code using LEDs.
+This project implements a simple UART receiver and transmitter. The reciver get ASCII code from the tablet via HC-05 Bluetooth module and converts serial data into an 8-bit parallel output using LEDs. The transmitter send the ASCII code of the letter 'A' (01000001) after pushing pysical push-buttom in the developmnt board to tablet via HC-05 Bluetooth module. To ensure separated data and debouncing, the transmit signal goin throe Edge detection with period of 9600Hz. The system using 9600Hz by divede the 125MHz main board clock. The rst signal is synchronous and connect to pysical push-buttom in the developmnt board.
+
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/a9e9a793-aca9-4105-8152-6b7ef97d0379" width="400">
+</p>
+<p align="center">3. HC-05 Module</p>
 
 ### **VHDL Code Explanation**
-This VHDL code implements a simple UART receiver that converts serial data into an 8-bit parallel output. It operates using a 125 MHz clock and generates a lower 9600 Hz clock for sampling the incoming data.
+The main module (Main_UART.vhd) is built from 4 submodules. 1. Clock diveder (Clk_div.vhd). 2. UART Transmitter (UART_tx.vhd) 3. UART Reciver (UART_rx.vhd). 4. Edge detection (Edge_detection.vhd). 
 
-The module begins by defining its inputs and outputs, including the high-frequency clock, a reset signal, a serial data input (`Din`), and an 8-bit output (`Dout`). A counter is used to divide the 125 MHz clock down to 9600 Hz, which is necessary for UART communication.
+The inputs are: `Clk_125MHz`, `rst`, `start_tx_pb` and `rx`.
 
-A finite state machine (FSM) is used to control the reception process. The system starts in an idle state (`start_stop`), where it waits for a low signal (`Din = 0`), indicating the start of data transmission. Once detected, the FSM transitions to the `Datain` state and begins capturing incoming bits at the 9600 Hz clock rate.
-
-Each bit is stored sequentially in the `Dout` register, indexed by `data_index`, which increments with each received bit. After all 8 bits are received, the FSM returns to the idle state (`start_stop`), ready for the next transmission.
-
-This design ensures reliable data reception by synchronizing with the incoming serial data and properly assembling it into an 8-bit parallel format.
+The outputs are: `tx` and `rx_result_led (7 downto 0)`.
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/88e385ed-1680-414e-9ed5-f9f762050356" width="600">
+  <img src="https://github.com/user-attachments/assets/73c7a157-5da6-47f5-a2fd-2c6a836bd308" width="600">
 </p>
-<p align="center">3. State-Machine to implement the UART receiver</p>
+<p align="center">4. UART System</p>
+
+**1. Main_UART.vhd**
+
+This module represents the top-level integration of the UART system.It connects all submodules required for UART communication, including:
+1. Clock divider
+2. UART transmitter (TX)
+3. UART receiver (RX)
+4. Push-button edge detection
+
+The design allows sending data via UART using a push button and receiving UART data and displaying it on LED.
+
+The Main_UART entity acts as the system controller, responsible for: Distributing the clock signal, connecting external inputs/outputs to internal modules
+and managing communication between TX and RX blocks.
+
+The design uses a 125 MHz system clock (`Clk_125MHz`) and reset push button input (`rst`). A push button input (`start_tx_pb`) is used to trigger transmission, while the `rx` signal receives serial data from an external UART source. The module outputs serial data through `tx` and displays received 8-bit data on LEDs via `rx_result_led`.
+
+**2. UART_rx.vhd**
+
+This module converts incoming serial UART data into parallel 8-bit data. It detects the start of a reciving data, sample each incoming bit sequentially, and assembles the complete ASCII code (8 bits). The process manage by using FSM. 
+
+The module uses `Clk_9600Hz` as its operating clock and `rst` as synchronous reset signal. The serial data input is `Din`, and the output `Dout[7:0]` stores the received 8-bit data.
+
+The FSM with the states: `start_stop`, `st_0`, `st_1`, `st_2`, `st_3`, `st_4`, `st_5`, `st_6`, and `st_7`. The `start_stop` state waits for the start bit, while each subsequent state captures one bit of data. Two signals, `present_state` and `next_state`, manage the state transitions. The receiver continuously monitors the input line. When the line is high (`1`), the system remains in the idle (`start_stop`) state. When a low signal (`0`) is detected, it indicates the start bit, and the FSM transitions to `st_0`. From there, the module samples one bit per clock cycle. Each state stores the current value of `Din` into the corresponding bit of `Dout`. After all 8 bits are received, the FSM returns to the `start_stop` state to wait for the next transmission. Each state captures one bit, storing data in LSB-first order, meaning the first received bit is placed in `Dout(0)` and the last in `Dout(7)`.
+
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/1edd7b93-d960-489d-aabe-ebf783998d87" width="600">
+</p>
+<p align="center">5. Reciver FSM diagram</p>
+
+**3. UART_tx.vhd**
+
+The module implements a UART transmitter using FSM to send the ASCII code of the letter 'A' (01000001) over the `Data_tx` line according to the UART protocol. 
+
+The module operates using the `Clk_9600Hz` clock and `rst` as synchronous reset signal. The `start_tx` input is used to initiate transmission. The output `Data_tx` is the serial data line that carries the transmitted bits.
+
+The design is based on an FSM with the following states: `idle`, `start_bit`, `st_0`, `st_1`, `st_2`, `st_3`, `st_4`, `st_5`, `st_6`, `st_7`, and `stop_bit`. The `idle` state represents the inactive UART line, while the remaining states correspond to transmitting each part of the UART frame. Two signals, `present_state` and `next_state`, control the state transitions. A constant value 'A' is defined as an 8-bit vector (`x"41"`).The transmitter begins in the `idle` state, where the output line is held high (`1`), which is the default UART idle condition. When the `start_tx` signal is asserted, the FSM transitions to the `start_bit` state, where a low signal (`0`) is transmitted to indicate the start of a frame. The FSM then progresses through states `st_0` to `st_7`, transmitting one bit of the data in each state. The bits are sent in LSB-first order, meaning `A(0)` is transmitted first and `A(7)` last. After all data bits are transmitted, the FSM enters the `stop_bit` state, where the line is set back to high (`1`). Finally, the FSM either returns to the idle state or immediately starts a new transmission if `start_tx` is still asserted.
+
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/469cd57b-a9aa-4101-9d54-167cb6478041" width="600">
+</p>
+<p align="center">6. Transmitter FSM diagram</p>
+
+**4. Edge_detection.vhd**
+
+This module is used to convert a level-based input signal (such as a push button) into a single clock-cycle pulse, ensuring that only one trigger event is generated per rising edge. This is especially important when interfacing mechanical inputs that may remain high for multiple clock cycles.
+The module operates using the `Clk_9600Hz` clock. The input `D` is the signal being monitored for transitions, and the output `Q` is a pulse that goes high for one clock cycle when a rising edge is detected on `D`.At every rising edge of the clock, the input signal `D` is first stored in `R0`, and the previous value of `R0` is stored in `R1`. This creates a one-clock-cycle delay between `R0` and `R1`. The output `Q` is generated using combinational logic `Q = (not R1) and R0` that detects when `R0` is high (`1`) and R1 is low (`0`). This condition occurs only when the input signal transitions from 0 to 1, producing a single-cycle pulse. A push button input (`start_tx_pb`) is used to trigger transmission so, in Main_UART `D` get the `start_tx_pb`.
+
+**5. Clk_div.vhd**
+
+The module uses `Clk_125MHz` as the main input clock. The output `Clk_9600Hz` is the generated low-frequency clock used by UART modules.
+The design is based on a counter (`counter`) that ranges from 0 to 13020. This value is derived from dividing the input clock frequency (125 MHz) by the desired output frequency (9600 Hz). The counter increments on every rising edge of the input clock and controls the output waveform.
+On each rising edge of the 125 MHz clock, the counter increments. For the first half of the count range (from 0 to 6510), the output clock `Clk_9600Hz` is set to low (`0`). For the second half (from 6511 to 13019), the output is set to high (`1`). When the counter reaches 13020, it resets back to zero, and the cycle repeats. This process generates a periodic square wave with a frequency close to 9600 Hz and an approximate 50% duty cycle.
 
 #### **Simulation**
-- A test bench is used to verify the UART receiver functionality.
+
+- A test bench is used to verify the UART receiver and transmitter functionality.
+
+**Main_UART_TB.vhd**
+
+The purpose of this testbench is to validate both UART transmission and reception by providing controlled input signals and monitoring the outputs. It ensures that the integrated system operates correctly under expected timing conditions.The testbench instantiates the Main_UART module as the Device Under Test (DUT) and connects internal signals to simulate real hardware inputs and outputs. Since this is a testbench, it has no external ports and operates entirely within the simulation environment. The testbench defines signals corresponding to the DUT ports, including `Clk_125MHz`, `rst`, `start_tx_pb`, and `rx` as inputs, and `tx` and `rx_result_led` as outputs. These signals are used to drive the DUT and observe its behavior.
+A process is used to generate a continuous clock signal. The clock toggles every 4 ns, resulting in a full period of 8 ns, which corresponds to a frequency of 125 MHz. This clock drives the entire system during simulation.
+The reset signal (`rst`) is held at logic low (`0`) throughout the simulation, meaning the system is not explicitly reset during operation.
+A dedicated process simulates incoming UART data on the `rx` line. The signal starts in the idle state (`1`) and then transitions to (`0`) to represent the start bit. Following this, a sequence of high and low values is applied with precise delays of approximately 104.17 µs, which corresponds to a baud rate of 9600 bits per second. Each delay represents one bit period, allowing the simulation of a full UART frame including start bit, data bits, and stop bit.
+Another process simulates a push button press for transmission. The signal `start_tx_pb` is initially low (`0`) and then set high (`1`) for a short duration (200 µs) after a delay. This generates a trigger event that activates the UART transmitter within the DUT.During simulation, the clock process continuously drives the system. The RX stimulus process injects serial data into the receiver, while the push button process triggers the transmitter. The DUT processes these inputs, producing serial output on `tx` and parallel output on `rx_result_led`, which can be observed in waveform viewers.
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/a3800823-1c38-4efd-b657-66761197f01d" width="600">
+  <img src="https://github.com/user-attachments/assets/2fc542ef-df3c-4c84-80fd-7b5a2dbdf4e4" width="800">
 </p>
-<p align="center">4. Reciver simulation</p>
+<p align="center">7. TB result waveform </p>
+
+#### **Debug and verify Operation**
+
+- Debug and verify right operation of UART receiver and transmitter functionality by using simple Logic analyzer.
+
+**The result:**
+
+UART transmit the letter 'A' ('01000001') after push the start tx push-buttom:
+
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/2a6b563b-69f6-44ba-bd2b-9cced6e1ce16" width="800">
+</p>
+<p align="center">8. UART transmit the letter 'A'</p>
+
+UART receive the letter 'A' ('01000001') after sending from tablet:
+
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/9c4b3ea2-cb40-4694-9198-266896decfe4" width="800">
+</p>
+<p align="center">9. UART receive the letter 'A'</p>
 
 #### **Results**
-- **ASCII Code for `A` (01000001) sent and received:**
+
+- **Sending A ('01000001') from tablet via HC-05:**
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/10840b89-54c1-436f-91f8-702ae3a9d15d" width="500">
+  <img src="https://github.com/user-attachments/assets/848db9d0-8111-4c72-b201-c35374aef113" width="500">
 </p>
-<p align="center">5. Sending A</p>
+<p align="center">10. Sending A</p>
+
+- **The result:**
+
 <p align="center">
   <img src="https://github.com/user-attachments/assets/423d8d65-cb9d-4715-ab9a-71429d419fec" width="500">
 </p>
-<p align="center">6. Received A</p>
+<p align="center">11. Led result for the letter A</p>
 
-- **ASCII Code for `z` (01111010) sent and received:**
+- **Sending z ('01111010') from tablet via HC-05:**
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/3242a540-7df3-4344-867f-e7e956dc0051" width="500">
+  <img src="https://github.com/user-attachments/assets/c7989c7e-b85f-4ce3-a4bc-00f4224ff676" width="500">
 </p>
-<p align="center">7. Sending z</p>
+<p align="center">12. Sending z</p>
 <p align="center">
   <img src="https://github.com/user-attachments/assets/847b26b8-00ae-41d9-8ba7-0ee72194c387" width="500">
 </p>
-<p align="center">8. Received z</p>
+<p align="center">13. Led result for the letter z</p>
+
+- **Reciving A ('01000001') from transmitter to tablet via HC-05 after push the start tx push-button:**
+  
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/3c3cc46e-b733-4c99-9130-a9d9777f31cb" width="500">
+</p>
+<p align="center">14. Reciving the letter A in tablet </p>
 
 #### **Hardware Connection**
-The HC-05 module is connected to the **PYNQ development board** using **PMOD GPIO connectors**. The received data is displayed via **8 external LEDs**.
+The HC-05 module is connected to the **PYNQ development board** using **PMOD GPIO connectors**. The received data is displayed via **8 external LEDs** and the transmited data is displayed in **tablet bluetooth terminal**.
 
 ---
 
@@ -103,7 +196,7 @@ The HC-05 module is connected to the **PYNQ development board** using **PMOD GPI
 <p align="center">
   <img src="https://github.com/user-attachments/assets/da26379d-39fb-4a35-a6aa-ad1796ab8066" width="300">
 </p>
-<p align="center">9. SPI protocol wires</p>
+<p align="center">15. SPI protocol wires</p>
 
 #### **SPI Data Transfer Process**
 
@@ -115,47 +208,69 @@ The HC-05 module is connected to the **PYNQ development board** using **PMOD GPI
 <p align="center">
   <img src="https://github.com/user-attachments/assets/24aeeedc-730f-4c1e-ba50-305e44e8e472" width="600">
 </p>
-<p align="center">10. SPI data transfer process</p>
+<p align="center">16. SPI data transfer process</p>
 
 ### Application
 This project implements an **SPI master** to control an **MCP4921 12-bit DAC**.
 
 <p align="center">
   <img src="https://github.com/user-attachments/assets/0366916e-452f-45a1-9fce-7093503a8b0f" width="600">
-</p><p align="center">11. MCP4921 pinout</p>
+</p><p align="center">17. MCP4921 pinout</p>
 
 
 **Voltage Calculation Formula:**
 
 $$V_{out} = \frac{V_{ref} \times D(11:0)}{4096}$$
 
+D(11:0) is the decimal value of the 12-bit digital data.
+
 ### VHDL Code Explanation
-This VHDL module implements an SPI Master to communicate with a Digital-to-Analog Converter (DAC). It generates three essential SPI signals: `MOSI` (Master Out, Slave In), `SCLK` (Serial Clock), and `CS` (Chip Select). The system operates using a 125 MHz input clock, which is divided down to generate an appropriate SPI clock.
+This VHDL module implements an SPI Master to communicate with a Digital-to-Analog Converter (DAC).
 
-The module follows a finite state machine (FSM) approach with three states:
+**1. SPI_DAC_Master.vhd**
 
-1. Idle (`st_idle`) – The system remains inactive until `tx_enable` is asserted. In this state, `CS` is high (inactive), and `MOSI` is low.
+The SPI_DAC_Master module implements an SPI master designed to communicate with a MCP4921 12-BIT DAC device. It generates the SPI signals `mosi`, `sclk`, and `cs` and transmits a fixed control word followed by data using a finite state machine (FSM). The design includes an internal clock divider to derive the SPI clock from a 125 MHz to 1MHz system clock.
 
-2. Control Transmission (`st0_txmt`) – When transmission starts, `CS` is pulled low to activate the DAC. The module sends a 4-bit control sequence (`0011`).
+The module operates with a system clock `clk_125MHz`, asynchronousreset rest signal `rst`, and a transmission enable signal `tx_enable`. The outputs include `mosi` for serial data transmission, `sclk` as the SPI clock, and `cs` as the chip select signal used to activate the DAC.
 
-3. Data Transmission (`st1_txmt`) – After sending the control bits, the system transmits a 12-bit data value (`010000000000`). Once transmission is complete, the system returns to the idle state (`st_idle`).
+SPI Clock Generation: An internal clock divider process generates the SPI clock (`spi_sclk`) from the `125 MHz` input clock to 1MHz `sclk`. A `counter` increments on each rising edge of the system clock and toggles the SPI clock when it reaches a specific value (62). This results in a lower-frequency clock suitable for SPI communication. 
 
-A clock division process reduces the 125 MHz input clock to generate an appropriate SPI clock (`SCLK`). The clock toggles after 62 cycles to ensure correct SPI timing. The FSM transitions between states based on the `tx_enable` signal and the data index counter.
+Bit Transmission Control: The transmission of bits is controlled by the `data_index` signal, which increments on each rising edge of the SPI clock. The `timer` signal defines how many bits are transmitted in each state. In `st0_txmt`, 4 bits of the control word are sent due to MCP4921 data-sheet, and in `st1_txmt`, 12 bits of data are transmitted. The correct bit is selected using indexing logic that ensures MSB-first transmission. The module begins in the `st_idle` state, where the chip select (`cs`) is high (inactive) and no data is transmitted. When `tx_enable` is asserted, the FSM transitions to `st0_txmt`, where the chip select (`cs`) is driven low and the control bits are transmitted serially. After sending the control word, the FSM moves to `st1_txmt`, where the data bits are transmitted. Once all bits are sent, the FSM returns to the `idle` state and waits for the next transmission request.
 
-This design ensures reliable SPI communication by sequencing the control and data bits properly while maintaining accurate clock timing. It is ideal for FPGA-based DAC control applications.
- 
   <p align="center">
   <img src="https://github.com/user-attachments/assets/46c4d564-0929-4052-a563-d94ea0b37035" width="600">
 </p>
-<p align="center">12. State-Machine to implement the SPI DAC Master</p>
+<p align="center">18. State-Machine to implement the SPI DAC Master</p>
 
 #### **Simulation**
 - A test bench is used to verify the UART receiver functionality.
 
+**SPI_DAC_MasterTB.vhd**
+
+The testbench defines signals corresponding to the SPI master interface. Inputs include `clk_125MHz`, `rst`, and `tx_enable`, while outputs include `mosi` (data line), `cs` (chip select), and `sclk` (serial clock). These signals allow full control and observation of the SPI communication process.
+A dedicated process generates a continuous clock signal. The clock toggles every 4 ns, resulting in a full period of 8 ns, which corresponds to a frequency of 125 MHz.
+The reset signal (`rst`) is held at logic low (`0`) throughout the simulation.
+A process is used to control the `tx_enabl`e signal, which triggers SPI communication. Initially, the signal is low (0) for 10 ms, then asserted high (1) for 3 ms to enable transmission, and finally returned to low for 20 ms. This sequence simulates a controlled transmission event followed by an idle period.
+During simulation, the clock continuously drives the system. When `tx_enable` is asserted, the SPI master begins transmitting data by generating the appropriate `sclk`, `mosi`, and `cs` signals. In the simulation the control 4-bit is "0011" and the 12-bit data is "010000000000".
+
   <p align="center">
-  <img src="https://github.com/user-attachments/assets/db4da775-e2be-43cd-9a6b-0aeb554bfd13" width="600">
+  <img src="https://github.com/user-attachments/assets/db4da775-e2be-43cd-9a6b-0aeb554bfd13" width="700">
 </p>
-<p align="center">13. SPI DAC master simulation</p>
+<p align="center">19. SPI DAC master simulation</p>
+
+#### **Debug and verify Operation**
+
+- Debug and verify right operation of SPI Master functionality by using simple Logic analyzer.
+
+**The result:**
+
+In the Debug and verify the control 4-bit is "0011" and the 12-bit data is "011111111111":
+
+  <p align="center">
+  <img src="https://github.com/user-attachments/assets/5ddba5c5-cd33-4e1f-b070-4a1cf6b14ff9" width="700">
+</p>
+<p align="center">20. SPI DAC Master Debug and verify</p>
+
 
 #### **Results**
 | Data Sent | Analog Voltage |
@@ -166,22 +281,25 @@ This design ensures reliable SPI communication by sequencing the control and dat
 <p align="center">
   <img src="https://github.com/user-attachments/assets/d62b3c64-ab6d-4be4-8083-54776a6049a3" width="500">
 </p>
-<p align="center">14. Data vector</p>
+<p align="center">21. Data vector</p>
 
 <p align="center">
   <img src="https://github.com/user-attachments/assets/1594d452-eadd-442b-8674-9d15d6453568" width="500">
 </p>
-<p align="center">15. Analog voltage for 001000000000</p>
+<p align="center">22. Analog voltage for 001000000000</p>
 
 <p align="center">
   <img src="https://github.com/user-attachments/assets/55eca8d1-a643-4fd8-b01d-aa084dc4a070" width="500">
 </p>
-<p align="center">16. Data vector</p>
+<p align="center">23. Data vector</p>
 
 <p align="center">
   <img src="https://github.com/user-attachments/assets/627caea0-8a51-476b-8a6f-fdb6fdeddd90" width="500">
 </p>
-<p align="center">17. Analog voltage for 011111111111</p>
+<p align="center">24. Analog voltage for 011111111111</p>
+
+#### **Hardware Connection**
+The MCP4921 SPI DAC is connected to the **PYNQ development board** using **PMOD GPIO connectors** as Slave. The analog value measured by multimeter.
 
 ---
 
@@ -195,7 +313,7 @@ This design ensures reliable SPI communication by sequencing the control and dat
 <p align="center">
   <img src="https://github.com/user-attachments/assets/548d7555-a5ee-4096-86aa-0d2ff31e6159" width="500">
 </p>
-<p align="center">18. I2C protocol wires</p>
+<p align="center">25. I2C protocol wires</p>
 
 ### I2C Data Transfer Process
 - The **master** generates a **START** signal.
@@ -206,15 +324,20 @@ This design ensures reliable SPI communication by sequencing the control and dat
 <p align="center">
   <img src="https://github.com/user-attachments/assets/f437672c-7904-4475-96ea-76ebe7ef33c7" width="300">
 </p>
-<p align="center">19. I2C start and stop signal</p>
+<p align="center">26. I2C start and stop signal</p>
 
 <p align="center">
   <img src="https://github.com/user-attachments/assets/a30b0858-58e9-4b32-9df9-b677871d45bb" width="600">
 </p>
-<p align="center">20. I2C frame for example</p>
+<p align="center">27. I2C frame for example</p>
 
 ### Application
-This project implements an **I2C master** to interface with an **LM75 temperature sensor**.
+This project implements an **I2C master** to interface with an **LM75 temperature sensor module**.
+
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/c5da427e-7724-42bb-a834-d3d55c353a4a" width="300">
+</p>
+<p align="center">28. LM75 Temp module</p>
 
 #### Temperature Calculation
 The temperature calculation follows these formulas:
@@ -223,18 +346,38 @@ The temperature calculation follows these formulas:
 - If the sign bit is **negative**:
   $$T(°C) = (\text{Two’s complement of } D(9:0)) \times 0.125$$
 
-### VHDL Code Explanation
-This VHDL module implements an I2C Master controller to communicate with an LM75 temperature sensor. The module interfaces with the I2C bus using `SCL` (serial clock) and `SDA` (serial data), and it operates at a base system clock of 125 MHz, which is divided down to generate appropriate I2C clock frequencies. Additionally, the temperature data received from the sensor is displayed using LEDs.
+D(9:0) is the decimal value of the 10-bit temp data.
 
-#### Functionality Overview
+### VHDL Code Explanation
+
+This VHDL module implements an I2C Master controller to communicate with an LM75 temperature sensor. 
+
+**1. I2C_LM75.vhd**
+
+The module interfaces with the I2C bus using SCL (serial clock) and SDA (serial data), and it operates at a base system clock of 125 MHz, which is divided down to generate appropriate I2C clock frequencies. Additionally, the temperature data received from the sensor is displayed using LEDs. this module handles all required steps, including start condition, address transmission, acknowledgment handling, repeated start, data reading, and stop condition by using FSM. 
+
+The module uses `clk_125MHz` as the system clock and synchronous reset signal `rst`. The `scl` output is the I²C clock line, and `sda` is a bidirectional data line used for communication with the sensor. The `led[10:0]` output displays the received temperature data, where the most significant bits come from the MSB register and the remaining bits from the LSB.
+
+The module update every 1 second the data.The module up the `rd_data` signal from low to high every 1 second for by using clock divider of 125 MHz input clock.
+
+- Read data signal:
+This process generates a periodic trigger signal (`rd_data`) using the 125 MHz system clock. The signal is normally low (0) and produces a short high pulse (1) once per defined time interval. This pulse is used to initiate a new I²C read operation from the sensor.The full counting cycle runs from 0 to 124,999,999, which corresponds to 1 second at a 125 MHz clock (125 million cycles). The high pulse duration is approximately 6,250 clock cycles, which equals about 50 microseconds. This means rd_data generates a short pulse once every second.
+
 - Clock Generation:
-  A 400 kHz clock is derived from the 125 MHz system clock. 
-  This clock is further divided to generate a 100 kHz clock, which is the standard I2C communication frequency.
+A 400 kHz clock is derived from the 125 MHz system clock. 
+This clock is further divided to generate a 100 kHz clock, which is the standard I2C communication frequency.
+On every rising edge of the 400 kHz clock, the variable `count_1` increments from 0 to 3 and then wraps around. Each value of `count_1` represents a specific phase in the I²C timing cycle. When `count_1` is 0, the clock line (`scl_buss`) is driven low. When it is 1, the data control signal (`dcl_buss`) is driven high. When it is 2, the clock line is driven high. When it is 3, the data control signal is driven low. This sequence repeats continuously, creating a structured timing pattern.
+
+- State transitions of the FSM:
+The process is triggered by the rising edge of `dcl_buss`, which acts as a timing reference for bit-level operations. When reset is active, the FSM returns to the `idle` state and the bit counter is cleared. During normal operation, the process increments `data_index` on each timing event. When the number of processed bits reaches `timer` - 1, the FSM transitions to the next state and the bit counter is reset. Otherwise, it continues counting within the current state. This mechanism allows each FSM state to last for a defined number of clock cycles (bits), enabling flexible handling of different transmission lengths such as 8-bit data, acknowledgments, or single-bit control phases.
+
+- Registers_in:
+This process captures incoming data from the sda line during read operations and stores it into internal registers. The process is triggered on the falling edge of `dcl_buss`, which corresponds to the correct sampling phase in I²C timing. When the FSM is in the `st9_read_msb` state, incoming bits are stored into the `Data_MSB` register. When in the `st11_read_lsb` state, bits are stored into the `Data_LSB` register. The indexing ensures that bits are stored in MSB-first order.
 
 - Finite State Machine (FSM) for I2C Transactions:
   The FSM has multiple states to handle I2C communication from LM75 datasheet timing diagram:
 
-  1. Idle (`st_idle`): The bus remains inactive until data needs to be read.
+  1. Idle (`st_idle`): The bus remains inactive until data needs to be read when `rd_data` = '1'.
 
   2. Start Condition (`st0_star`): Initiates communication by pulling `SDA` low while `SCL` is high.
 
@@ -264,33 +407,16 @@ This VHDL module implements an I2C Master controller to communicate with an LM75
 
   15. Stop Condition (`st13_stop`): Releases the I2C bus and ends communication.
 
-- Data Processing and LED Output:
-   
-  The received MSB and LSB of temperature data are stored in registers.
-  The upper bits of the MSB are displayed on LEDs, allowing visual feedback on temperature readings.
-
-- Clock Management:
-  
-  The 125 MHz input clock is divided down to generate 400 kHz and 100 kHz clocks, ensuring proper timing for I2C communication.
-  A counter manages the clock transitions and ensures correct phase alignment.
-
-- I2C Data Handling:
+- **I2C Data Handling:**
    
   The SDA signal is driven based on the FSM state transitions.
   When reading data, SDA is set to high-impedance ('Z') to allow the LM75 sensor to transmit.
   Bit-wise shifting is used to send the address, pointer, and receive temperature data.
 
-- Summary:
-  
-  This VHDL module acts as an I2C Master, communicating with the LM75 temperature sensor.
-  It follows a structured FSM to handle start, address transmission, data reading, and stop conditions. The received 
-  temperature data is stored and displayed using LEDs, making it useful for FPGA-based temperature monitoring applications.
-
- 
 <p align="center">
   <img src="https://github.com/user-attachments/assets/5d38be0e-d7ae-498e-93ea-c187676827c7" width="700">
 </p>
-<p align="center">21. LM75 datasheet timing diagram</p>
+<p align="center">29. LM75 datasheet timing diagram</p>
 
 #### Additional Details
 - The **11-bit result** updates the **11 LED register every 1 second**.
@@ -299,22 +425,55 @@ This VHDL module implements an I2C Master controller to communicate with an LM75
 - **Pointer**: `00000000`
 
 #### **Simulation**
-- A test bench is used to verify the UART receiver functionality.
+
+- A test bench is used to verify the I2C  functionality for LM75 Temp sensor.
+
+**I2C_LM75_TB.vhd**
+
+Signals are defined to match the DUT interface. These include `clk_125MHz` and `rst` as inputs, `scl` and `sda` as I²C bus signals, and `led` as the output displaying temperature data. The `sda` signal is bidirectional (inout), reflecting the real I²C bus behavior.
+A dedicated process generates a continuous clock signal. The clock toggles every 4 ns, resulting in a full period of 8 ns, which corresponds to a frequency of 125 MHz.
+The reset signal (`rst`) is held at logic low (`0`) throughout the simulation.
+
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/ceb3384a-3375-4b44-91d6-fa2bc0a484ea" width="600">
+  <img src="https://github.com/user-attachments/assets/ceb3384a-3375-4b44-91d6-fa2bc0a484ea" width="700">
 </p>
-<p align="center">22. I2C master simulation</p>
+<p align="center">30. I2C master simulation</p>
+
+#### **Debug and verify Operation**
+
+- Debug and verify right operation of I2C L75 Master functionality by using simple Logic analyzer.
+
+**The result:**
+
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/e6d6a744-d45e-4292-bf66-a78aba78cbbf" width="800">
+</p>
+<p align="center">31. I2C Master LM75 SDA and SCL for full frame</p>
+
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/2b7b1862-69c1-44db-a959-4dc785a015aa" width="800">
+</p>
+<p align="center">32. I2C Master LM75 Temp data</p>
+
+From image 32 the temp data is: "00011001010".
+
+$$T(°C) = 202 \times 0.125 = 25.25°$$
+
+
 
 #### **Results**
-- **Measured Temperature: 31.25°C**
+- **Measured Temperature: 22.25°C**
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/db009f19-6876-4321-a7b6-d707682542e0" width="500">
+  <img src="https://github.com/user-attachments/assets/d60bfcfd-e009-4f12-865b-f48585a9f31c" width="500">
 </p>
-<p align="center">23. I2C master result</p>
+<p align="center">33. I2C master result</p>
 
-$$T(°C) = 250 \times 0.125 = 31.25°$$
+$$T(°C) = 178 \times 0.125 = 22.25°$$
+
+#### **Hardware Connection**
+The LM75 module is connected to the **PYNQ development board** using **PMOD GPIO connectors**. The received data is displayed via **11 external LEDs**.
 
 ---
 

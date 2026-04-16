@@ -55,5 +55,3 @@ set_property -dict {PACKAGE_PIN V16 IOSTANDARD LVCMOS33} [get_ports {led[1]}]
 #set_property PULLUP true [get_ports {pmodb_gpio_tri_io[3]}]
 #set_property PULLUP true [get_ports {pmodb_gpio_tri_io[6]}]
 #set_property PULLUP true [get_ports {pmodb_gpio_tri_io[7]}]
-
-

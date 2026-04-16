@@ -18,7 +18,6 @@ end component;
 signal clk_125MHz, rst, scl, sda : std_logic;
 signal led : std_logic_vector(10 downto 0);
 
-
 begin
 
 CH1: I2C_LM75 port map(clk_125MHz => clk_125MHz, rst => rst, scl=> scl,
@@ -31,7 +30,5 @@ begin
 clk_125MHz <='0'; wait for 4ns;
 clk_125MHz <='1'; wait for 4ns;
 end process;
-
-
 
 end Behavioral;
